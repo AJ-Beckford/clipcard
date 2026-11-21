@@ -25,11 +25,37 @@ body, html {
      the animated fog canvas lives inside #vanta-fog */
   background: #000;
   margin: 0;
-  padding: 0;
+  padding: 20px;
   width: 100%;
-  height: 100%;
+  min-height: 100vh;
   overflow: hidden;
   z-index: 9;
+  /* border-box so the 20px padding is included in width:100% / min-height:
+     100vh — otherwise (content-box) the body's content box is shifted
+     20px right of the viewport and the card centers off-screen. Inner card
+     elements are left on their default box-sizing intentionally. */
+  box-sizing: border-box;
+  /* Flexbox centering (from template.html): the card is a flow element,
+     vertically + horizontally centered with breathing-room padding, so it
+     reflows cleanly on mobile instead of being pinned to a translated
+     absolute position. The fixed #vanta-fog canvas sits behind at z 0. */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Entrance animation (from template.html): the card fades in and slides
+   up once on load. Runs on .bussinesscard (the container), independently
+   of the .flip rotation, so the two never fight over the transform prop. */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Vanta.Fog animated backdrop container (canvas is injected here) */
@@ -70,19 +96,20 @@ a:hover {
    Fonts stay Raleway / Old Standard TT; orbs.html's system-ui is ignored.
    ========================================================================= */
 .bussinesscard {
-  height: 320px;
-  width: 428px;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  -moz-transform: translate(-50%, -50%);
-  -ms-transform: translate(-50%, -50%);
-  -webkit-transform: translate(-50%, -50%);
-  transform: translate(-50%, -50%);
+  /* Portrait orientation + sizing taken from template.html (340x440),
+     so the card reads top-to-bottom on mobile the way the template does. */
+  height: 440px;
+  width: 340px;
+  position: relative;
   /* depth for the 3D flip */
   perspective: 1400px;
   cursor: pointer;
   -webkit-tap-highlight-color: rgba(0, 255, 243, 0.25);
+  /* Entrance animation from template.html. No `forwards` fill: once the
+     0.8s entrance ends the card reverts to its base transform (none on
+     wide screens, scale() on narrow ones), so the responsive media
+     queries below keep working instead of being pinned to translateY(0). */
+  animation: fadeSlideUp 0.8s ease-out;
 }
 .bussinesscard:focus-visible {
   outline: 2px solid rgba(0, 255, 243, 0.8);
@@ -97,7 +124,8 @@ a:hover {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.8s cubic-bezier(0.4, 0.1, 0.2, 1);
+  /* Overshoot easing from template.html gives the flip a lively spring. */
+  transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 .bussinesscard:hover .flip,
 .bussinesscard .flip.flipped {
@@ -125,12 +153,26 @@ a:hover {
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  /* Matches template.html exactly: face visibility is governed purely by
+     backface-visibility:hidden together with the rotation transform — no
+     visibility transitions and no hidden-state toggling. Each face is hidden
+     by the engine the instant it rotates past edge-on (90°) and reappears
+     the instant it rotates back toward the viewer, on the same 0.8s
+     cubic-bezier(0.175,0.885,0.32,1.275) clock as the rotation itself. */
 }
+
+/* The back face is pre-rotated 180° so it sits back-to-back with the front;
+   backface-visibility:hidden keeps it hidden until the card flips, exactly
+   as in template.html (no visibility:hidden toggling). The flip itself is
+   driven by the .flip transform rule above; face visibility needs no extra
+   rules. */
 .bussinesscard .back {
   transform: rotateY(180deg);
+  /* Column flex so the .contact panel can fill the whole back face
+     (flex:1), making the back face the same size as the front face instead
+     of a smaller panel floating inside the shell. */
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
 }
 
 /* ---- front face ---- */
@@ -194,26 +236,39 @@ a:hover {
 .bussinesscard .front .name:after {
   content: '';
   position: absolute;
-  bottom: -0.6em;
+  bottom: -0.3em;    /* was -0.6em — move closer to the name */
   width: 20%;
   left: 40%;
   right: 40%;
-  height: 1px;
-  background: #2a2b39;
+  height: 2px;
+  background: rgba(42, 43, 57, 0.4);   /* soften it */
 }
+
 .bussinesscard .front .introduction {
-  text-align: center;
-  color: #2a2b39;
-  font-family: 'Old Standard TT', serif;
-  font-style: italic;
-  margin-top: 1.1em;
+  margin-top: 1.6em;   /* was 1.1em — give the line breathing room */
 }
 
 /* ---- back face ---- */
 .bussinesscard .back .contact {
-  width: 82%;
-  padding: 20px 24px;
-  border-radius: 14px;
+  /* Fill the ENTIRE back face: flex:1 + width/height 100% makes the frosted
+     contact panel the same size as the back face (and therefore the same
+     size as the front face). Previously this was width:82% centered, which
+     left empty translucent glass above and below the panel and made the
+     back read as a smaller card floating inside the shell. Contact rows
+     center vertically within the full face. border-radius matches the
+     face's 20px so the frosted surface runs cleanly to the rounded edge. */
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  /* border-box so width:100% / height:100% include the padding + border;
+     otherwise (content-box) the panel is 100% + 48px padding + 2px border
+     = ~390px wide inside a 340px face, overflowing and clipping asymmetrically. */
+  box-sizing: border-box;
+  padding: 28px 24px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   /* frosted, near-opaque glass: readable contact info */
   background: rgba(255, 255, 255, 0.62);
   -webkit-backdrop-filter: blur(18px);
@@ -254,21 +309,30 @@ a:hover {
 
 /* Respect the motion preference, as orbs.html does for its orbs */
 @media (prefers-reduced-motion: reduce) {
-  .bussinesscard .flip {
+  .bussinesscard {
+    /* skip the fadeSlideUp entrance entirely */
+    animation: none;
+  }
+  .bussinesscard .flip,
+  .bussinesscard .front,
+  .bussinesscard .back {
+    /* rotation snaps instantly; face visibility follows backface-visibility
+       instantly too — no lingering ghost of the rotated-away face */
     transition: none;
   }
 }
 
-/* Keep the card fully on screen on narrow viewports; the whole card,
-   text included, scales down as one unit */
-@media (max-width: 480px) {
+/* Keep the card fully on screen on narrow viewports. With flexbox
+   centering + body padding doing the heavy lifting, only very small
+   viewports need a gentle scale-down of the whole card as one unit. */
+@media (max-width: 380px) {
   .bussinesscard {
-    transform: translate(-50%, -50%) scale(0.76);
+    transform: scale(0.86);
   }
 }
-@media (max-width: 360px) {
+@media (max-width: 320px) {
   .bussinesscard {
-    transform: translate(-50%, -50%) scale(0.64);
+    transform: scale(0.74);
   }
 }
 </style>
@@ -281,7 +345,7 @@ a:hover {
   <!-- Glassmorphic business card: hover, click, or Enter/Space flips it
        180deg around the vertical axis to reveal the back face. -->
   <section class="bussinesscard" tabindex="0" role="button" aria-pressed="false"
-           aria-label="Business card: Aaron Beckford, Founder, Digital Architect & Success Manager. Touch or hover to flip.">
+           aria-label="Business card: Aaron Beckford, Founder & Digital Architect. Touch or hover to flip.">
     <div class="flip">
       <div class="front">
         <div class="top">
@@ -289,7 +353,7 @@ a:hover {
         </div>
         <div class="nametroduction">
           <div class="name">Aaron Beckford</div>
-          <div class="introduction">Founder, Digital Architect & Success Manager</div>
+          <div class="introduction">Founder & Digital Architect</div>
         </div>
       </div>
       <div class="back">
